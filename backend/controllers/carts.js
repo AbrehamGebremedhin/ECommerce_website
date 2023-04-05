@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 
 //Get a user's cart
 exports.getCart = asyncHandler( async(req,res,next) => {
-    const cart = await Cart.findById(req.user.id);
+    const cart = await Cart.find({user: req.user.id});
 
     if(!cart){
         return next(new ErrorResponse(`The user doesn't have any carts yet`, 404));
@@ -15,6 +15,30 @@ exports.getCart = asyncHandler( async(req,res,next) => {
     res.status(200).json({
         success: true,
         data: cart
+    })
+});
+
+//checks for an unconfirmed cart
+exports.checkCart = asyncHandler( async(req,res,next) => {
+    const cart = await Cart.find({user: req.user.id});
+
+    if(!cart){
+        return next(new ErrorResponse(`The user doesn't have any carts yet`, 404));
+    }
+
+    cart.map((userCart) => {
+        if(userCart.status === 'Added to cart'){
+            res.status(200).json({
+                success: true,
+                data: userCart._id
+            })
+        }
+        else{
+            res.status(200).json({
+                success: false,
+                data: {}
+            })
+        }
     })
 });
 
@@ -140,5 +164,30 @@ exports.removeItem = asyncHandler( async(req,res,next) => {
     res.status(200).json({
         success: true,
         data: exsitingCart
+    })
+});
+
+//handles payment
+exports.confirmPayment = asyncHandler( async(req,res,next) => {
+    const cart = await Cart.findById(req.params.cartId);
+
+    if(!cart){
+        return next(new ErrorResponse(`Cart not found using ${req.params.cartId}`, 404));
+    }
+
+    if(cart.price === req.body.payment){
+        cart.status = 'Confirmed';
+        await cart.save()
+    }
+    else if(cart.price > req.body.payment){
+        return next(new ErrorResponse(`There is a remaining payment with an amount of ${cart.price - req.body.payment}`, 405));
+    }
+    else if(cart.price < req.body.payment){
+        return next(new ErrorResponse(`There is an over payment with an amount of ${req.body.payment - cart.price}`, 405));
+    }
+
+    res.status(200).json({
+        success: true,
+        data: cart
     })
 });
